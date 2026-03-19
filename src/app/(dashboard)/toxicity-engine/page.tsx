@@ -584,36 +584,34 @@ export default function ToxicityEnginePage() {
                     </CardContent>
                   </Card>
 
-                  {/* RAG Explanation */}
-                  {result.explanation && (
-                    <Card>
-                      <CardHeader
-                        className="cursor-pointer select-none pb-2"
-                        onClick={() => setShowExplanation(!showExplanation)}
-                      >
-                        <div className="flex items-center justify-between">
-                          <CardTitle className="text-base flex items-center gap-2">
-                            <BookOpen className="size-4 text-primary" />
-                            AI Scientific Explanation
-                          </CardTitle>
-                          {showExplanation
-                            ? <ChevronUp className="size-4 text-muted-foreground" />
-                            : <ChevronDown className="size-4 text-muted-foreground" />
-                          }
-                        </div>
-                        <CardDescription className="text-xs">
-                          RAG-powered LLM — detailed mechanistic interpretation for non-experts
-                        </CardDescription>
-                      </CardHeader>
-                      {showExplanation && (
-                        <CardContent>
-                          <p className="text-sm leading-relaxed text-muted-foreground">
-                            {result.explanation}
+                  {/* AI Scientific Explanation — always visible after prediction */}
+                  <Card className="border-primary/30 bg-primary/5">
+                    <CardHeader className="pb-3">
+                      <CardTitle className="text-base flex items-center gap-2">
+                        <BookOpen className="size-4 text-primary" />
+                        AI Scientific Explanation
+                      </CardTitle>
+                      <CardDescription className="text-xs">
+                        RAG-powered analysis — mechanistic interpretation of your prediction result
+                      </CardDescription>
+                    </CardHeader>
+                    <CardContent>
+                      {result.explanation ? (
+                        <p className="text-sm leading-relaxed text-muted-foreground whitespace-pre-wrap">
+                          {result.explanation}
+                        </p>
+                      ) : (
+                        <div className="flex items-start gap-3 text-sm text-muted-foreground">
+                          <div className="mt-0.5 size-4 rounded-full border-2 border-primary border-t-transparent animate-spin shrink-0" />
+                          <p>
+                            AI explanation unavailable for this prediction. Ensure the ML backend
+                            has <code className="text-xs bg-muted px-1 rounded">GROQ_API_KEY</code> configured,
+                            then re-run the prediction.
                           </p>
-                        </CardContent>
+                        </div>
                       )}
-                    </Card>
-                  )}
+                    </CardContent>
+                  </Card>
                 </>
               )}
             </div>

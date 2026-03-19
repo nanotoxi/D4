@@ -1,11 +1,16 @@
 import { NextRequest, NextResponse } from "next/server"
 import type { SessionUser } from "@/lib/users"
 
+function dashboardUrl() {
+  const base = (process.env.NEXT_PUBLIC_APP_URL || "").replace(/\/$/, "")
+  return base ? `${base}/dashboard` : "/dashboard"
+}
+
 export async function GET(request: NextRequest) {
   const sessionId = request.nextUrl.searchParams.get("session_id")
 
   if (!sessionId) {
-    return NextResponse.redirect(new URL("/dashboard", request.url))
+    return NextResponse.redirect(dashboardUrl())
   }
 
   try {
@@ -18,7 +23,7 @@ export async function GET(request: NextRequest) {
 
     if (!res.ok) {
       console.error("Backend checkout/success failed:", res.status)
-      return NextResponse.redirect(new URL("/dashboard", request.url))
+      return NextResponse.redirect(dashboardUrl())
     }
 
     const data = await res.json()
@@ -26,7 +31,7 @@ export async function GET(request: NextRequest) {
     const customerEmail: string = data.email || "user@nanotoxi.com"
     const customerName: string = data.name || customerEmail.split("@")[0]
 
-    const response = NextResponse.redirect(new URL("/dashboard", request.url))
+    const response = NextResponse.redirect(dashboardUrl())
 
     // Mark user as a paying subscriber
     if (customerId) {
@@ -61,6 +66,6 @@ export async function GET(request: NextRequest) {
     return response
   } catch (error) {
     console.error("Checkout success error:", error)
-    return NextResponse.redirect(new URL("/dashboard", request.url))
+    return NextResponse.redirect(dashboardUrl())
   }
 }

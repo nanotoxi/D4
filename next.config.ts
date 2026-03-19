@@ -1,6 +1,8 @@
 import type { NextConfig } from "next";
 
 const nextConfig: NextConfig = {
+  // Use webpack instead of Turbopack to avoid memory issues
+  turbopack: undefined,
   experimental: {
     optimizePackageImports: ["lucide-react", "@radix-ui/react-icons", "recharts", "date-fns"],
   },

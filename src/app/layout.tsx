@@ -6,8 +6,9 @@ import { SidebarConfigProvider } from "@/contexts/sidebar-context";
 import { inter } from "@/lib/fonts";
 
 export const metadata: Metadata = {
-  title: "Shadcn Dashboard",
-  description: "A dashboard built with Next.js and shadcn/ui",
+  title: "NanoToxi AI | Dashboard",
+  description: "AI-powered nanoparticle toxicity prediction platform",
+  icons: { icon: "/nanologo.png" },
 };
 
 export default function RootLayout({

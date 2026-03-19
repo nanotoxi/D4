@@ -1,18 +1,12 @@
 import { ChartAreaInteractive } from "./components/chart-area-interactive"
-import { DataTable } from "./components/data-table"
 import { SectionCards } from "./components/section-cards"
-
-import data from "./data/data.json"
-import pastPerformanceData from "./data/past-performance-data.json"
-import keyPersonnelData from "./data/key-personnel-data.json"
-import focusDocumentsData from "./data/focus-documents-data.json"
 
 export default function Page() {
   return (
     <>
       <div className="px-4 lg:px-6">
         <div className="flex flex-col gap-2">
-          <h1 className="text-2xl font-bold tracking-tight">Strategic Insights</h1>
+          <h1 className="text-2xl font-bold tracking-tight">Overview</h1>
           <p className="text-muted-foreground">
             NanoToxi AI &mdash; In-silico safety assessment command center
           </p>
@@ -23,13 +17,27 @@ export default function Page() {
         <SectionCards />
         <ChartAreaInteractive />
       </div>
-      <div className="@container/main">
-        <DataTable
-          data={data}
-          pastPerformanceData={pastPerformanceData}
-          keyPersonnelData={keyPersonnelData}
-          focusDocumentsData={focusDocumentsData}
-        />
+    </>
+  )
+}
+import { ChartAreaInteractive } from "./components/chart-area-interactive"
+import { SectionCards } from "./components/section-cards"
+
+export default function Page() {
+  return (
+    <>
+      <div className="px-4 lg:px-6">
+        <div className="flex flex-col gap-2">
+          <h1 className="text-2xl font-bold tracking-tight">Overview</h1>
+          <p className="text-muted-foreground">
+            NanoToxi AI &mdash; In-silico safety assessment command center
+          </p>
+        </div>
+      </div>
+
+      <div className="@container/main px-4 lg:px-6 space-y-6">
+        <SectionCards />
+        <ChartAreaInteractive />
       </div>
     </>
   )

@@ -10,8 +10,6 @@ import {
   CheckCircle2,
   Info,
   Loader2,
-  ChevronDown,
-  ChevronUp,
   Atom,
   BookOpen,
 } from "lucide-react"
@@ -36,6 +34,13 @@ import {
 } from "@/components/ui/tooltip"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { Progress } from "@/components/ui/progress"
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select"
 
 interface PredictionResult {
   particle_id: string
@@ -48,6 +53,7 @@ interface PredictionResult {
     toxicity_prediction: "SAFE" | "TOXIC"
     confidence: number
     risk_score: number
+    top_features?: { feature: string; value: number }[]
   }
   stage3?: {
     ros_generation: number
@@ -71,20 +77,17 @@ function FieldInfo({ tip }: { tip: string }) {
   )
 }
 
-/** Map the Python ML backend response shape to the PredictionResult interface */
 function mapMLResponse(mlData: Record<string, unknown>, particleId: string): PredictionResult {
   const stage1Raw = (mlData.stage1 || {}) as Record<string, unknown>
   const stage2Raw = (mlData.stage2 || {}) as Record<string, unknown>
   const stage3Raw = (mlData.stage3 || {}) as Record<string, unknown>
 
-  // stage1: aggregation_factor comes as "1.50x" string, hydrodynamic_diameter as "75.0" string
   const aggFactorStr = String(stage1Raw.aggregation_factor || "1.00").replace("x", "")
-  const hydDiamStr = String(stage1Raw.predicted_hydrodynamic_diameter || "0")
+  const hydDiamStr = String(stage1Raw.predicted_hydrodynamic_diameter || stage1Raw.hydrodynamic_diameter || "0")
 
   const aggregation_factor = parseFloat(aggFactorStr) || 1.0
   const hydrodynamic_diameter = parseFloat(hydDiamStr) || 0
 
-  // stage2: confidence is 0–1 float from Python; multiply by 100 for display
   const confidenceRaw = typeof stage2Raw.confidence === "number" ? stage2Raw.confidence : 0
   const confidence = confidenceRaw <= 1 ? Math.round(confidenceRaw * 1000) / 10 : confidenceRaw
 
@@ -95,14 +98,11 @@ function mapMLResponse(mlData: Record<string, unknown>, particleId: string): Pre
       ? stage2Raw.risk_score
       : 0
 
-  // Normalize toxicity label — Python returns "TOXIC" or "NON-TOXIC"
   const rawTox = String(stage2Raw.toxicity_prediction || "").toUpperCase()
   const toxicity_prediction: "SAFE" | "TOXIC" = rawTox === "TOXIC" ? "TOXIC" : "SAFE"
 
-  // stage3: cytotoxicity is YES/NO in current Python backend; map to numeric fields when present
   let stage3: PredictionResult["stage3"] | undefined
   if (stage3Raw && Object.keys(stage3Raw).length > 0) {
-    // If the ML backend evolves to return numeric fields, use them directly
     const cytotoxic = String(stage3Raw.cytotoxicity || "").toUpperCase() === "YES"
     stage3 = {
       ros_generation: typeof stage3Raw.ros_generation === "number" ? stage3Raw.ros_generation : cytotoxic ? 60 : 10,
@@ -130,33 +130,43 @@ function mapMLResponse(mlData: Record<string, unknown>, particleId: string): Pre
       toxicity_prediction,
       confidence,
       risk_score,
+      top_features: Array.isArray(stage2Raw.top_features)
+        ? (stage2Raw.top_features as { feature: string; value: number }[])
+        : undefined,
     },
     stage3,
     explanation: typeof mlData.explanation === "string" ? mlData.explanation : undefined,
   }
 }
 
+const NP_TYPES = ["Inorganic", "Organic", "Carbon-based", "Polymeric", "Lipid-based", "Composite"]
+const MORPHOLOGIES = ["Spherical", "Rod", "Cube", "Platelet", "Irregular", "Core-shell", "Dendrimer"]
+const CELL_TYPES = ["HeLa", "HEK293", "A549", "MCF-7", "RAW264.7", "HepG2", "Caco-2", "HUVEC"]
+
 export default function ToxicityEnginePage() {
   const [loading, setLoading] = React.useState(false)
   const [result, setResult] = React.useState<PredictionResult | null>(null)
   const [error, setError] = React.useState<string | null>(null)
-  const [bioContext, setBioContext] = React.useState(false)
-  const [showExplanation, setShowExplanation] = React.useState(false)
   const [batchFile, setBatchFile] = React.useState<File | null>(null)
   const [batchLoading, setBatchLoading] = React.useState(false)
   const [batchProgress, setBatchProgress] = React.useState(0)
 
-  // Form state — single particle fields
-  const [nanoparticleId, setNanoparticleId] = React.useState("")
-  const [coreSize, setCoreSize] = React.useState("")
-  const [zetaPotential, setZetaPotential] = React.useState("")
-  const [surfaceArea, setSurfaceArea] = React.useState("")
-  const [bandgapEnergy, setBandgapEnergy] = React.useState("")
-  const [dosage, setDosage] = React.useState("")
-  const [exposureTime, setExposureTime] = React.useState("")
-  // Biological context fields
+  // Form state
+  const [nanoparticleName, setNanoparticleName] = React.useState("")
+  const [npType, setNpType] = React.useState("Inorganic")
+  const [primarySizeNm, setPrimarySizeNm] = React.useState("")
+  const [hydrodynamicSizeNm, setHydrodynamicSizeNm] = React.useState("")
+  const [zetaPotentialMv, setZetaPotentialMv] = React.useState("")
+  const [morphology, setMorphology] = React.useState("Spherical")
+  const [isCoated, setIsCoated] = React.useState(false)
+  const [surfaceChemistry, setSurfaceChemistry] = React.useState("")
+  const [cellType, setCellType] = React.useState("HeLa")
+  const [doseMinUgml, setDoseMinUgml] = React.useState("")
+  const [doseMaxUgml, setDoseMaxUgml] = React.useState("")
+  const [exposureTimeH, setExposureTimeH] = React.useState("")
   const [ph, setPh] = React.useState("")
-  const [proteinCorona, setProteinCorona] = React.useState(false)
+  const [isTherapeutic, setIsTherapeutic] = React.useState(false)
+  const [includeRag, setIncludeRag] = React.useState(false)
 
   const handleSinglePredict = async (e: React.FormEvent) => {
     e.preventDefault()
@@ -166,19 +176,21 @@ export default function ToxicityEnginePage() {
 
     try {
       const payload: Record<string, unknown> = {
-        nanoparticle_id: nanoparticleId || `NP-${Date.now()}`,
-        core_size: parseFloat(coreSize),
-        zeta_potential: parseFloat(zetaPotential),
-        surface_area: parseFloat(surfaceArea),
-        bandgap_energy: parseFloat(bandgapEnergy),
-        dosage: parseFloat(dosage),
-        exposure_time: parseFloat(exposureTime),
-        bioContext,
-      }
-
-      if (bioContext) {
-        if (ph) payload.environmental_pH = parseFloat(ph)
-        payload.protein_corona = proteinCorona
+        nanoparticle_id: nanoparticleName || `NP-${Date.now()}`,
+        np_type: npType,
+        primary_size_nm: parseFloat(primarySizeNm),
+        hydrodynamic_size_nm: hydrodynamicSizeNm ? parseFloat(hydrodynamicSizeNm) : parseFloat(primarySizeNm) * 2,
+        zeta_potential_mv: parseFloat(zetaPotentialMv),
+        morphology,
+        is_coated: isCoated,
+        surface_chemistry: isCoated && surfaceChemistry ? surfaceChemistry : null,
+        cell_type: cellType,
+        dose_min_ugml: parseFloat(doseMinUgml),
+        dose_max_ugml: doseMaxUgml ? parseFloat(doseMaxUgml) : parseFloat(doseMinUgml) * 2,
+        exposure_time_h: parseFloat(exposureTimeH),
+        environmental_pH: ph ? parseFloat(ph) : 7.4,
+        is_therapeutic: isTherapeutic,
+        include_rag: includeRag,
       }
 
       const res = await fetch("/api/predict", {
@@ -203,9 +215,7 @@ export default function ToxicityEnginePage() {
   }
 
   const handleBatchUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
-    if (e.target.files?.[0]) {
-      setBatchFile(e.target.files[0])
-    }
+    if (e.target.files?.[0]) setBatchFile(e.target.files[0])
   }
 
   const handleBatchRun = async () => {
@@ -219,20 +229,18 @@ export default function ToxicityEnginePage() {
     setBatchLoading(false)
     setBatchProgress(0)
     setBatchFile(null)
-    // In production: trigger Excel download with toxicity_prediction column
     alert("Batch complete! Your Excel file with toxicity predictions has been downloaded.")
   }
 
   return (
     <div className="px-4 lg:px-6 space-y-6">
-      {/* Header */}
       <div className="flex flex-col gap-2">
         <h1 className="text-2xl font-bold tracking-tight flex items-center gap-2">
           <FlaskConical className="size-6 text-primary" />
           Nano-Toxicity Engine
         </h1>
         <p className="text-muted-foreground">
-          3-Stage Ensemble ML Pipeline — Aggregation → Toxicity Screening → Mechanistic Cytotoxicity
+          RF v6 Ensemble Pipeline — Aggregation → Toxicity Screening → SHAP Explanation
         </p>
       </div>
 
@@ -254,45 +262,77 @@ export default function ToxicityEnginePage() {
               <CardHeader>
                 <CardTitle className="text-base">Lab Bench — Input Configuration</CardTitle>
                 <CardDescription>
-                  Enter nanoparticle physicochemical properties to run a full 3-stage prediction.
+                  Enter nanoparticle physicochemical properties to run a full prediction.
                 </CardDescription>
               </CardHeader>
               <CardContent>
                 <form onSubmit={handleSinglePredict} className="space-y-5">
-                  {/* Particle ID */}
-                  <div className="space-y-1">
-                    <Label htmlFor="particle-id" className="text-xs">
-                      Nanoparticle ID
-                      <FieldInfo tip="Unique identifier for this nanoparticle sample (e.g. CuO_30nm_case)." />
-                    </Label>
-                    <Input
-                      id="particle-id"
-                      type="text"
-                      placeholder="e.g. CuO_30nm_case"
-                      value={nanoparticleId}
-                      onChange={(e) => setNanoparticleId(e.target.value)}
-                    />
+                  {/* Particle Identity */}
+                  <div className="grid grid-cols-2 gap-3">
+                    <div className="space-y-1">
+                      <Label htmlFor="particle-name" className="text-xs">
+                        Nanoparticle Name
+                        <FieldInfo tip="Identifier for this nanoparticle sample (e.g. CuO_30nm)." />
+                      </Label>
+                      <Input
+                        id="particle-name"
+                        type="text"
+                        placeholder="e.g. CuO_30nm"
+                        value={nanoparticleName}
+                        onChange={(e) => setNanoparticleName(e.target.value)}
+                      />
+                    </div>
+                    <div className="space-y-1">
+                      <Label className="text-xs">
+                        NP Type
+                        <FieldInfo tip="Material category of the nanoparticle." />
+                      </Label>
+                      <Select value={npType} onValueChange={setNpType}>
+                        <SelectTrigger>
+                          <SelectValue />
+                        </SelectTrigger>
+                        <SelectContent>
+                          {NP_TYPES.map((t) => (
+                            <SelectItem key={t} value={t}>{t}</SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                    </div>
                   </div>
 
-                  {/* Physical Stats */}
+                  {/* Physical Properties */}
                   <div>
                     <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground mb-3">
                       Physical Properties
                     </p>
                     <div className="grid grid-cols-2 gap-3">
                       <div className="space-y-1">
-                        <Label htmlFor="core-size" className="text-xs">
-                          Core Size (nm)
-                          <FieldInfo tip="Primary particle diameter measured by TEM or XRD." />
+                        <Label htmlFor="primary-size" className="text-xs">
+                          Primary Size (nm)
+                          <FieldInfo tip="Core particle diameter measured by TEM or XRD." />
                         </Label>
                         <Input
-                          id="core-size"
+                          id="primary-size"
                           type="number"
                           placeholder="e.g. 25"
                           step="0.1"
                           required
-                          value={coreSize}
-                          onChange={(e) => setCoreSize(e.target.value)}
+                          value={primarySizeNm}
+                          onChange={(e) => setPrimarySizeNm(e.target.value)}
+                        />
+                      </div>
+                      <div className="space-y-1">
+                        <Label htmlFor="hydro-size" className="text-xs">
+                          Hydrodynamic Size (nm)
+                          <FieldInfo tip="DLS diameter in solution. Leave blank to auto-estimate as 2× primary size." />
+                        </Label>
+                        <Input
+                          id="hydro-size"
+                          type="number"
+                          placeholder="auto"
+                          step="0.1"
+                          value={hydrodynamicSizeNm}
+                          onChange={(e) => setHydrodynamicSizeNm(e.target.value)}
                         />
                       </div>
                       <div className="space-y-1">
@@ -306,65 +346,78 @@ export default function ToxicityEnginePage() {
                           placeholder="e.g. -28"
                           step="0.1"
                           required
-                          value={zetaPotential}
-                          onChange={(e) => setZetaPotential(e.target.value)}
+                          value={zetaPotentialMv}
+                          onChange={(e) => setZetaPotentialMv(e.target.value)}
                         />
                       </div>
                       <div className="space-y-1">
-                        <Label htmlFor="surface-area" className="text-xs">
-                          Surface Area (m²/g)
-                          <FieldInfo tip="BET surface area — key driver of cellular reactivity." />
+                        <Label className="text-xs">
+                          Morphology
+                          <FieldInfo tip="Physical shape of the nanoparticle." />
                         </Label>
-                        <Input
-                          id="surface-area"
-                          type="number"
-                          placeholder="e.g. 150"
-                          step="0.1"
-                          required
-                          value={surfaceArea}
-                          onChange={(e) => setSurfaceArea(e.target.value)}
-                        />
-                      </div>
-                      <div className="space-y-1">
-                        <Label htmlFor="bandgap" className="text-xs">
-                          Bandgap Energy (eV)
-                          <FieldInfo tip="Electronic bandgap; affects ROS generation potential for metal oxides." />
-                        </Label>
-                        <Input
-                          id="bandgap"
-                          type="number"
-                          placeholder="e.g. 3.2"
-                          step="0.01"
-                          required
-                          value={bandgapEnergy}
-                          onChange={(e) => setBandgapEnergy(e.target.value)}
-                        />
+                        <Select value={morphology} onValueChange={setMorphology}>
+                          <SelectTrigger>
+                            <SelectValue />
+                          </SelectTrigger>
+                          <SelectContent>
+                            {MORPHOLOGIES.map((m) => (
+                              <SelectItem key={m} value={m}>{m}</SelectItem>
+                            ))}
+                          </SelectContent>
+                        </Select>
                       </div>
                     </div>
                   </div>
 
+                  {/* Surface */}
+                  <div className="space-y-3">
+                    <div className="flex items-center justify-between">
+                      <div>
+                        <p className="text-sm font-medium">Surface Coating</p>
+                        <p className="text-xs text-muted-foreground">Has a functional surface coating</p>
+                      </div>
+                      <Switch checked={isCoated} onCheckedChange={setIsCoated} />
+                    </div>
+                    {isCoated && (
+                      <div className="space-y-1">
+                        <Label htmlFor="surface-chem" className="text-xs">
+                          Surface Chemistry
+                          <FieldInfo tip="Coating type or functional group (e.g. PEG, APTES, citrate)." />
+                        </Label>
+                        <Input
+                          id="surface-chem"
+                          type="text"
+                          placeholder="e.g. PEG, citrate, amine"
+                          value={surfaceChemistry}
+                          onChange={(e) => setSurfaceChemistry(e.target.value)}
+                        />
+                      </div>
+                    )}
+                  </div>
+
                   <Separator />
 
-                  {/* Exposure Logic */}
+                  {/* Exposure */}
                   <div>
                     <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground mb-3">
                       Exposure Parameters
                     </p>
                     <div className="grid grid-cols-2 gap-3">
                       <div className="space-y-1">
-                        <Label htmlFor="dosage" className="text-xs">
-                          Dosage (μg/mL)
-                          <FieldInfo tip="Concentration of nanoparticles in cell culture medium." />
+                        <Label className="text-xs">
+                          Cell Type
+                          <FieldInfo tip="Target cell line for cytotoxicity assessment." />
                         </Label>
-                        <Input
-                          id="dosage"
-                          type="number"
-                          placeholder="e.g. 50"
-                          step="0.1"
-                          required
-                          value={dosage}
-                          onChange={(e) => setDosage(e.target.value)}
-                        />
+                        <Select value={cellType} onValueChange={setCellType}>
+                          <SelectTrigger>
+                            <SelectValue />
+                          </SelectTrigger>
+                          <SelectContent>
+                            {CELL_TYPES.map((c) => (
+                              <SelectItem key={c} value={c}>{c}</SelectItem>
+                            ))}
+                          </SelectContent>
+                        </Select>
                       </div>
                       <div className="space-y-1">
                         <Label htmlFor="exposure-time" className="text-xs">
@@ -377,28 +430,39 @@ export default function ToxicityEnginePage() {
                           placeholder="e.g. 24"
                           step="1"
                           required
-                          value={exposureTime}
-                          onChange={(e) => setExposureTime(e.target.value)}
+                          value={exposureTimeH}
+                          onChange={(e) => setExposureTimeH(e.target.value)}
                         />
                       </div>
-                    </div>
-                  </div>
-
-                  <Separator />
-
-                  {/* Biological Context Toggle */}
-                  <div className="flex items-center justify-between">
-                    <div>
-                      <p className="text-sm font-medium">Biological Context</p>
-                      <p className="text-xs text-muted-foreground">
-                        Include physiological parameters for higher accuracy
-                      </p>
-                    </div>
-                    <Switch checked={bioContext} onCheckedChange={setBioContext} />
-                  </div>
-
-                  {bioContext && (
-                    <div className="grid grid-cols-2 gap-3 pt-1">
+                      <div className="space-y-1">
+                        <Label htmlFor="dose-min" className="text-xs">
+                          Min Dose (μg/mL)
+                          <FieldInfo tip="Minimum concentration of NPs in cell culture medium." />
+                        </Label>
+                        <Input
+                          id="dose-min"
+                          type="number"
+                          placeholder="e.g. 10"
+                          step="0.1"
+                          required
+                          value={doseMinUgml}
+                          onChange={(e) => setDoseMinUgml(e.target.value)}
+                        />
+                      </div>
+                      <div className="space-y-1">
+                        <Label htmlFor="dose-max" className="text-xs">
+                          Max Dose (μg/mL)
+                          <FieldInfo tip="Maximum dose. Leave blank to auto-set as 2× min dose." />
+                        </Label>
+                        <Input
+                          id="dose-max"
+                          type="number"
+                          placeholder="auto"
+                          step="0.1"
+                          value={doseMaxUgml}
+                          onChange={(e) => setDoseMaxUgml(e.target.value)}
+                        />
+                      </div>
                       <div className="space-y-1">
                         <Label htmlFor="ph" className="text-xs">
                           pH
@@ -415,23 +479,28 @@ export default function ToxicityEnginePage() {
                           onChange={(e) => setPh(e.target.value)}
                         />
                       </div>
-                      <div className="space-y-1 flex flex-col justify-end">
-                        <Label className="text-xs">
-                          Protein Corona
-                          <FieldInfo tip="Whether a protein corona layer is present on the nanoparticle surface." />
-                        </Label>
-                        <div className="flex items-center gap-2 h-9">
-                          <Switch
-                            checked={proteinCorona}
-                            onCheckedChange={setProteinCorona}
-                          />
-                          <span className="text-xs text-muted-foreground">
-                            {proteinCorona ? "Present" : "Absent"}
-                          </span>
-                        </div>
-                      </div>
                     </div>
-                  )}
+                  </div>
+
+                  <Separator />
+
+                  {/* Options */}
+                  <div className="space-y-3">
+                    <div className="flex items-center justify-between">
+                      <div>
+                        <p className="text-sm font-medium">Therapeutic Application</p>
+                        <p className="text-xs text-muted-foreground">Nanoparticle is designed for drug delivery</p>
+                      </div>
+                      <Switch checked={isTherapeutic} onCheckedChange={setIsTherapeutic} />
+                    </div>
+                    <div className="flex items-center justify-between">
+                      <div>
+                        <p className="text-sm font-medium">AI Scientific Explanation</p>
+                        <p className="text-xs text-muted-foreground">RAG-powered mechanistic interpretation (slower)</p>
+                      </div>
+                      <Switch checked={includeRag} onCheckedChange={setIncludeRag} />
+                    </div>
+                  </div>
 
                   {error && (
                     <div className="rounded-md bg-destructive/10 border border-destructive/30 px-3 py-2 text-xs text-destructive">
@@ -444,7 +513,7 @@ export default function ToxicityEnginePage() {
                     {loading ? (
                       <>
                         <Loader2 className="size-4 mr-2 animate-spin" />
-                        Running 3-Stage Pipeline…
+                        Running Prediction…
                       </>
                     ) : (
                       <>
@@ -475,7 +544,7 @@ export default function ToxicityEnginePage() {
                   <CardContent className="pt-8 space-y-3">
                     <Loader2 className="size-10 text-primary mx-auto animate-spin" />
                     <div className="space-y-1">
-                      <p className="text-sm font-medium">Running 3-Stage Ensemble…</p>
+                      <p className="text-sm font-medium">Running RF v6 Ensemble…</p>
                       <p className="text-xs text-muted-foreground">Stage 1: Aggregation Dynamics</p>
                     </div>
                   </CardContent>
@@ -540,6 +609,26 @@ export default function ToxicityEnginePage() {
                         </div>
                       </div>
 
+                      {/* SHAP Top Features */}
+                      {result.stage2.top_features && result.stage2.top_features.length > 0 && (
+                        <div>
+                          <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground mb-2">
+                            Top Predictive Features (SHAP)
+                          </p>
+                          <div className="space-y-1.5">
+                            {result.stage2.top_features.slice(0, 5).map((f) => (
+                              <div key={f.feature} className="space-y-0.5">
+                                <div className="flex justify-between text-xs">
+                                  <span className="truncate">{f.feature}</span>
+                                  <span className="tabular-nums font-medium ml-2">{(f.value * 100).toFixed(1)}%</span>
+                                </div>
+                                <Progress value={Math.abs(f.value) * 100} className="h-1" />
+                              </div>
+                            ))}
+                          </div>
+                        </div>
+                      )}
+
                       {/* Stage 3 */}
                       {result.stage3 && (
                         <div>
@@ -576,7 +665,6 @@ export default function ToxicityEnginePage() {
                         </div>
                       )}
 
-                      {/* Download */}
                       <Button variant="outline" size="sm" className="w-full">
                         <Download className="size-4 mr-2" />
                         Download Result Card (PDF)
@@ -584,7 +672,7 @@ export default function ToxicityEnginePage() {
                     </CardContent>
                   </Card>
 
-                  {/* AI Scientific Explanation — always visible after prediction */}
+                  {/* AI Scientific Explanation */}
                   <Card className="border-primary/30 bg-primary/5">
                     <CardHeader className="pb-3">
                       <CardTitle className="text-base flex items-center gap-2">
@@ -601,14 +689,9 @@ export default function ToxicityEnginePage() {
                           {result.explanation}
                         </p>
                       ) : (
-                        <div className="flex items-start gap-3 text-sm text-muted-foreground">
-                          <div className="mt-0.5 size-4 rounded-full border-2 border-primary border-t-transparent animate-spin shrink-0" />
-                          <p>
-                            AI explanation unavailable for this prediction. Ensure the ML backend
-                            has <code className="text-xs bg-muted px-1 rounded">GROQ_API_KEY</code> configured,
-                            then re-run the prediction.
-                          </p>
-                        </div>
+                        <p className="text-sm text-muted-foreground">
+                          Enable <strong>AI Scientific Explanation</strong> before running the prediction to get a RAG-powered mechanistic interpretation.
+                        </p>
                       )}
                     </CardContent>
                   </Card>
@@ -624,7 +707,8 @@ export default function ToxicityEnginePage() {
             <CardHeader>
               <CardTitle className="text-base">Batch Excel Prediction</CardTitle>
               <CardDescription>
-                Upload an <code>.xlsx</code> file where each row is a nanoparticle with the same columns as the single-particle form. The engine will run POST /predict per row and return your file with an added <code>toxicity_prediction</code> column.
+                Upload an <code>.xlsx</code> file where each row is a nanoparticle. Required columns:{" "}
+                <code>nanoparticle_name, np_type, primary_size_nm, zeta_potential_mv, cell_type, dose_min_ugml, exposure_time_h</code>.
               </CardDescription>
             </CardHeader>
             <CardContent className="space-y-4">

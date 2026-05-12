@@ -20,6 +20,11 @@ export async function GET(request: NextRequest) {
       nontoxic_count: data.nontoxic_count,
       avg_confidence: data.avg_confidence,
       predictions_today: data.predictions_today,
+      // section-cards aliases
+      total: String(data.total_predictions ?? 0),
+      safe_count: String(data.nontoxic_count ?? 0),
+      daily_series: data.daily_series ?? [],
+      // legacy camelCase aliases
       totalSimulations: data.total_predictions,
       toxicCount: data.toxic_count,
       safePredictions: data.nontoxic_count,

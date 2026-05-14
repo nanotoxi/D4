@@ -150,6 +150,8 @@ export default function ToxicityEnginePage() {
   const [batchFile, setBatchFile] = React.useState<File | null>(null)
   const [batchLoading, setBatchLoading] = React.useState(false)
   const [batchProgress, setBatchProgress] = React.useState(0)
+  const [batchJobId, setBatchJobId] = React.useState<string | null>(null)
+  const [batchStatus, setBatchStatus] = React.useState<"idle" | "processing" | "done" | "failed">("idle")
 
   // Form state
   const [nanoparticleName, setNanoparticleName] = React.useState("")
@@ -221,15 +223,44 @@ export default function ToxicityEnginePage() {
   const handleBatchRun = async () => {
     if (!batchFile) return
     setBatchLoading(true)
-    setBatchProgress(0)
-    for (let i = 0; i <= 100; i += 10) {
-      await new Promise((r) => setTimeout(r, 150))
-      setBatchProgress(i)
+    setBatchProgress(10)
+    setBatchJobId(null)
+    setBatchStatus("processing")
+    try {
+      const formData = new FormData()
+      formData.append("file", batchFile)
+      const res = await fetch("/api/bulk", { method: "POST", body: formData })
+      const data = await res.json()
+      if (!res.ok) throw new Error(data.error || "Upload failed")
+      const jobId: string = data.job_id
+      setBatchJobId(jobId)
+      setBatchProgress(20)
+      let attempts = 0
+      const poll = async (): Promise<void> => {
+        attempts++
+        if (attempts > 90) { setBatchStatus("failed"); setBatchLoading(false); return }
+        const sr = await fetch(`/api/bulk/${jobId}`)
+        const sd = await sr.json()
+        if (sd.total_rows && sd.processed_rows) {
+          setBatchProgress(Math.min(20 + Math.round((sd.processed_rows / sd.total_rows) * 75), 95))
+        }
+        if (sd.status === "done") {
+          setBatchProgress(100)
+          setBatchStatus("done")
+          setBatchLoading(false)
+        } else if (sd.status === "failed") {
+          setBatchStatus("failed")
+          setBatchLoading(false)
+        } else {
+          await new Promise((r) => setTimeout(r, 2000))
+          return poll()
+        }
+      }
+      await poll()
+    } catch {
+      setBatchStatus("failed")
+      setBatchLoading(false)
     }
-    setBatchLoading(false)
-    setBatchProgress(0)
-    setBatchFile(null)
-    alert("Batch complete! Your Excel file with toxicity predictions has been downloaded.")
   }
 
   return (
@@ -734,13 +765,24 @@ export default function ToxicityEnginePage() {
                 </div>
               )}
 
-              {batchLoading && (
+              {(batchLoading || batchStatus === "done") && (
                 <div className="space-y-1.5">
                   <div className="flex justify-between text-xs text-muted-foreground">
-                    <span>Processing rows…</span>
+                    <span>{batchStatus === "done" ? "Complete!" : "Processing rows…"}</span>
                     <span>{batchProgress}%</span>
                   </div>
-                  <Progress value={batchProgress} />
+                  <Progress value={batchProgress} className={batchStatus === "done" ? "[&>div]:bg-green-500" : ""} />
+                </div>
+              )}
+
+              {batchJobId && (
+                <p className="text-xs text-muted-foreground">Job ID: <code className="font-mono">{batchJobId}</code></p>
+              )}
+
+              {batchStatus === "failed" && (
+                <div className="flex items-center gap-2 text-sm text-destructive">
+                  <AlertCircle className="size-4" />
+                  Processing failed. Please check your file format and try again.
                 </div>
               )}
 
@@ -755,6 +797,17 @@ export default function ToxicityEnginePage() {
                   <><Zap className="size-4 mr-2" /> Run Batch Prediction</>
                 )}
               </Button>
+
+              {batchStatus === "done" && batchJobId && (
+                <Button
+                  variant="default"
+                  className="w-full bg-green-600 hover:bg-green-700"
+                  onClick={() => window.open(`/api/bulk/${batchJobId}/download`, "_blank")}
+                >
+                  <Download className="size-4 mr-2" />
+                  Download Results Excel
+                </Button>
+              )}
 
               <Button variant="outline" className="w-full" size="sm">
                 <Download className="size-4 mr-2" />

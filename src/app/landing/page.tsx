@@ -1,20 +1,19 @@
-import type { Metadata } from 'next'
-import { LandingPageContent } from './landing-page-content'
+import type { Metadata } from "next"
+import { LandingPageContent } from "./landing-page-content"
 
-// Metadata for the landing page
 export const metadata: Metadata = {
-  title: 'ShadcnStore - Modern Admin Dashboard Template',
-  description: 'A beautiful and comprehensive admin dashboard template built with React, Next.js, TypeScript, and shadcn/ui. Perfect for building modern web applications.',
-  keywords: ['admin dashboard', 'react', 'nextjs', 'typescript', 'shadcn/ui', 'tailwind css'],
+  title: "NanoToxi AI — In-Silico Nanoparticle Toxicity Prediction",
+  description: "Predict nanoparticle toxicity in seconds using our RF v6 ML model trained on 14,791 validated samples. SHAP explanations, batch predictions, and RAG-powered insights.",
+  keywords: ["nanoparticle toxicity", "nanotoxicology", "in silico", "RF model", "SHAP", "nanomedicine safety"],
   openGraph: {
-    title: 'ShadcnStore - Modern Admin Dashboard Template',
-    description: 'A beautiful and comprehensive admin dashboard template built with React, Next.js, TypeScript, and shadcn/ui.',
-    type: 'website',
+    title: "NanoToxi AI — In-Silico Nanoparticle Toxicity Prediction",
+    description: "Predict nanoparticle toxicity in seconds. 14,791 validated samples. SHAP explainability. Batch predictions.",
+    type: "website",
   },
   twitter: {
-    card: 'summary_large_image',
-    title: 'ShadcnStore - Modern Admin Dashboard Template',
-    description: 'A beautiful and comprehensive admin dashboard template built with React, Next.js, TypeScript, and shadcn/ui.',
+    card: "summary_large_image",
+    title: "NanoToxi AI — In-Silico Nanoparticle Toxicity Prediction",
+    description: "Predict nanoparticle toxicity in seconds. 14,791 validated samples. SHAP explainability.",
   },
 }
 

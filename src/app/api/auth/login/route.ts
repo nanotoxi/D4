@@ -1,17 +1,27 @@
 import { NextRequest, NextResponse } from "next/server"
 import { authenticateUser } from "@/lib/users"
 
+interface SessionUser {
+  id: string
+  email: string
+  role: string
+  name?: string
+  _access_token: string
+  _refresh_token: string
+  [key: string]: unknown
+}
+
 export async function POST(request: NextRequest) {
   try {
     const { email, password } = await request.json()
     if (!email || !password) {
       return NextResponse.json({ error: "Email and password are required" }, { status: 400 })
     }
-    const sessionUser = await authenticateUser(email, password) as (typeof sessionUser & { _access_token?: string; _refresh_token?: string }) | null
+    const sessionUser = await authenticateUser(email, password) as SessionUser | null
     if (!sessionUser) {
       return NextResponse.json({ error: "Invalid email or password" }, { status: 401 })
     }
-    const { _access_token, _refresh_token, ...user } = sessionUser as typeof sessionUser & { _access_token: string; _refresh_token: string }
+    const { _access_token, _refresh_token, ...user } = sessionUser
     const response = NextResponse.json({ user })
     response.cookies.set("nanotoxi_jwt", _access_token, {
       httpOnly: true, secure: process.env.NODE_ENV === "production",

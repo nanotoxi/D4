@@ -43,7 +43,7 @@ export function LoginForm1({ className }: { className?: string }) {
         return
       }
 
-      router.push("/")
+      router.push("/dashboard")
     } catch {
       setError("Something went wrong. Please try again.")
     } finally {

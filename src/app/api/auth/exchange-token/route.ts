@@ -1,23 +1,21 @@
 import { NextRequest, NextResponse } from "next/server"
-
-const EXPRESS_API_URL = process.env.EXPRESS_API_URL || "http://localhost:4242"
+import { BACKEND_URL } from "@/lib/users"
 
 export async function POST(request: NextRequest) {
   try {
     const { token } = await request.json()
     if (!token) return NextResponse.json({ error: "Missing token" }, { status: 400 })
 
-    const r = await fetch(`${EXPRESS_API_URL}/api/auth/exchange-token`, {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ token }),
+    // Validate token by calling /auth/me on the real backend
+    const r = await fetch(`${BACKEND_URL}/api/v1/auth/me`, {
+      headers: { Authorization: `Bearer ${token}`, "Content-Type": "application/json" },
     })
 
     const data = await r.json()
     if (!r.ok) return NextResponse.json(data, { status: r.status })
 
-    const response = NextResponse.json({ user: data.user })
-    response.cookies.set("auth_session", JSON.stringify(data.user), {
+    const response = NextResponse.json({ user: data })
+    response.cookies.set("auth_session", JSON.stringify(data), {
       httpOnly: true,
       secure: process.env.NODE_ENV === "production",
       sameSite: "lax",

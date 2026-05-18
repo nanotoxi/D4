@@ -14,7 +14,7 @@ export async function GET(request: NextRequest) {
     const page = Math.floor(offset / limit) + 1
 
     const res = await fetch(
-      `${BACKEND_URL}/api/v1/predictions/history?page=${page}&limit=${limit}`,
+      `${BACKEND_URL}/api/v1/predict/history?page=${page}&limit=${limit}`,
       { headers: { Authorization: `Bearer ${jwt}` } }
     )
 
@@ -24,7 +24,6 @@ export async function GET(request: NextRequest) {
 
     const data = await res.json()
 
-    // Map FastAPI prediction records to the shape research-archive expects
     const simulations = (data.predictions || []).map((p: Record<string, unknown>) => {
       const confRaw = typeof p.confidence === "number" ? p.confidence : 0
       return {

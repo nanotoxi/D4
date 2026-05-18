@@ -27,7 +27,7 @@ export async function POST(request: NextRequest) {
       include_shap: true,
       include_rag: Boolean(body.include_rag || false),
     }
-    const res = await fetch(`${BACKEND_URL}/api/v1/predictions/predict/`, {
+    const res = await fetch(`${BACKEND_URL}/api/v1/predict/`, {
       method: "POST",
       headers: { "Content-Type": "application/json", Authorization: `Bearer ${jwt}` },
       body: JSON.stringify(payload),

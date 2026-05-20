@@ -139,9 +139,16 @@ function mapMLResponse(mlData: Record<string, unknown>, particleId: string): Pre
   }
 }
 
-const NP_TYPES = ["Inorganic", "Organic", "Carbon-based", "Polymeric", "Lipid-based", "Composite"]
-const MORPHOLOGIES = ["Spherical", "Rod", "Cube", "Platelet", "Irregular", "Core-shell", "Dendrimer"]
-const CELL_TYPES = ["HeLa", "HEK293", "A549", "MCF-7", "RAW264.7", "HepG2", "Caco-2", "HUVEC"]
+// Values must exactly match the model's training vocabulary
+const NP_TYPES = ["Inorganic", "Organic", "Hybrid"]
+const MORPHOLOGIES = [
+  "Spherical", "Nanorod", "Cubic", "Core-Shell", "Dendrimer",
+  "Fibrous", "Hexagonal", "Nanotube", "Nanowire", "2D Sheet", "Porous", "Other",
+]
+const CELL_TYPES = [
+  "A549", "BEAS-2B", "Caco-2", "HT-29", "HeLa", "HepG2",
+  "L929", "MCF-7", "MDA-MB-231", "RAW264.7", "Other",
+]
 
 export default function ToxicityEnginePage() {
   const [loading, setLoading] = React.useState(false)
@@ -271,7 +278,7 @@ export default function ToxicityEnginePage() {
           Nano-Toxicity Engine
         </h1>
         <p className="text-muted-foreground">
-          RF v6 Ensemble Pipeline — Aggregation → Toxicity Screening → SHAP Explanation
+          RF v2 Final — Aggregation → Toxicity Screening → SHAP Explanation
         </p>
       </div>
 
@@ -316,7 +323,7 @@ export default function ToxicityEnginePage() {
                     <div className="space-y-1">
                       <Label className="text-xs">
                         NP Type
-                        <FieldInfo tip="Material category of the nanoparticle." />
+                        <FieldInfo tip="Material category: Inorganic (metal oxides, QDs), Organic (carbon-based, lipid), or Hybrid." />
                       </Label>
                       <Select value={npType} onValueChange={setNpType}>
                         <SelectTrigger>
@@ -369,7 +376,7 @@ export default function ToxicityEnginePage() {
                       <div className="space-y-1">
                         <Label htmlFor="zeta" className="text-xs">
                           Zeta Potential (mV)
-                          <FieldInfo tip="Surface charge; negative values (&lt; −30 mV) indicate colloidal stability." />
+                          <FieldInfo tip="Surface charge; negative values (< −30 mV) indicate colloidal stability." />
                         </Label>
                         <Input
                           id="zeta"
@@ -575,7 +582,7 @@ export default function ToxicityEnginePage() {
                   <CardContent className="pt-8 space-y-3">
                     <Loader2 className="size-10 text-primary mx-auto animate-spin" />
                     <div className="space-y-1">
-                      <p className="text-sm font-medium">Running RF v6 Ensemble…</p>
+                      <p className="text-sm font-medium">Running RF v2 Final Model…</p>
                       <p className="text-xs text-muted-foreground">Stage 1: Aggregation Dynamics</p>
                     </div>
                   </CardContent>
